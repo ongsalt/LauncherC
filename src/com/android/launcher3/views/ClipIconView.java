@@ -224,10 +224,11 @@ public class ClipIconView extends View implements ClipPathView {
                 // Center align foreground
                 int height = mFinalDrawableBounds.height();
                 int width = mFinalDrawableBounds.width();
-                int diffY = dp.isLandscape ? 0
-                        : (int) (((height * drawableScale) - height) / 2);
+//                int diffY = dp.isLandscape ? 0
+//                        : (int) (((height * drawableScale) - height) / 2);
                 int diffX = dp.isLandscape ? (int) (((width * drawableScale) - width) / 2)
                         : 0;
+                int diffY = diffX;
                 sTmpRect.set(mFinalDrawableBounds);
                 sTmpRect.offset(diffX, diffY);
                 mForeground.setBounds(sTmpRect);

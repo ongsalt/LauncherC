@@ -315,6 +315,16 @@ public final class Utilities {
         r.offset(px, py);
     }
 
+    public static void scaleRectFAboutTop(RectF r, float scaleX, float scaleY) {
+        float px = r.centerX();
+        float py = r.centerY() + r.height() / 2;
+        r.offset(-px, -py);
+        r.left = r.left * scaleX;
+        r.right = r.right * scaleX;
+        r.bottom = r.bottom * scaleY;
+        r.offset(px, py);
+    }
+
     public static void scaleRectAboutCenter(Rect r, float scale) {
         if (scale != 1.0f) {
             int cx = r.centerX();
