@@ -49,7 +49,6 @@ import android.view.RemoteAnimationTarget
 import android.view.SurfaceControl
 import android.view.View
 import android.view.ViewTreeObserver.OnDrawListener
-import android.view.WindowInsetsAnimation.Bounds
 import android.view.WindowManager
 import android.view.animation.Interpolator
 import android.view.animation.PathInterpolator
@@ -137,7 +136,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
     // Will never be larger than MAX_NUM_TASKS
     private var mTaskStartParams: LinkedHashMap<Int, Pair<Int, Int>>? = null
     private val mOpeningInterpolator: Interpolator = Interpolators.APPLE_EASE
-//    private val mOpeningXInterpolator: Interpolator
+    private val mOpeningYInterpolator: Interpolator = PathInterpolator(.15f, .56f, .1f, 1f)
 
     init {
         mLauncher = Launcher.cast(Launcher.getLauncher(context))
@@ -400,8 +399,8 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             }
             appsView.alpha = alphas[0]
             val alpha = ObjectAnimator.ofFloat(appsView, View.ALPHA, *alphas)
-            alpha.duration = CONTENT_ALPHA_DURATION.toLong()
-            alpha.interpolator = Interpolators.LINEAR
+            alpha.duration = APP_LAUNCH_DURATION
+            alpha.interpolator = Interpolators.APPLE_EASE
             appsView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
             alpha.addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
@@ -412,8 +411,8 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 LauncherAnimUtils.SCALE_PROPERTY[appsView] = scales[0]
                 val scale =
                     ObjectAnimator.ofFloat(appsView, LauncherAnimUtils.SCALE_PROPERTY, *scales)
-                scale.interpolator = Interpolators.AGGRESSIVE_EASE
-                scale.duration = CONTENT_SCALE_DURATION.toLong()
+                scale.interpolator = Interpolators.APPLE_EASE
+                scale.duration = APP_LAUNCH_DURATION
                 launcherAnimator.play(scale)
             }
             launcherAnimator.play(alpha)
@@ -650,6 +649,16 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             var mIconAlpha = FloatProp(
                 prop.iconAlphaStart,
                 0f,
+                (APP_LAUNCH_ALPHA_START_DELAY + APP_LAUNCH_ALPHA_DURATION).coerceAtMost(
+                    APP_LAUNCH_DURATION - APP_LAUNCH_ALPHA_DURATION
+                ).toFloat(),
+                APP_LAUNCH_ALPHA_DURATION.toFloat(),
+                Interpolators.LINEAR
+            )
+
+            var mWindowAlpha = FloatProp(
+                0f,
+                1f,
                 APP_LAUNCH_ALPHA_START_DELAY.toFloat(),
                 APP_LAUNCH_ALPHA_DURATION.toFloat(),
                 Interpolators.LINEAR
@@ -670,7 +679,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             )
             var mCropRectHeight = FloatProp(
                 prop.cropHeightStart.toFloat(), prop.cropHeightEnd.toFloat(), 0f,
-                APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
+                APP_LAUNCH_DURATION.toFloat(), mOpeningYInterpolator
             )
             var mNavFadeOut = FloatProp(
                 1f, 0f, 0f, ANIMATION_NAV_FADE_OUT_DURATION.toFloat(),
@@ -693,6 +702,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
 //                crop.bottom = 0
                 // calculate app scale with anchor
                 val scale = mWindowScale.value
+                val scaleY = mCropRectHeight.value / mCropRectWidth.value
                 val scaledCropWidth = mCropRectWidth.value
                 val scaledCropHeight = mCropRectHeight.value
 
@@ -708,8 +718,6 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 val windowTransY0 =
                     initY + mDy.value - centerAnchorOffsetY + dragLayerBounds[1].toFloat() + mAnchorPad.value
 
-                val scaleY = mCropRectHeight.value / mCropRectWidth.value
-
                 tmpRectF.set(launcherIconBounds)
                 Utilities.scaleRectFAboutCenter(
                     tmpRectF,
@@ -719,7 +727,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 tmpRectF.offset(dragLayerBounds[0].toFloat(), dragLayerBounds[1].toFloat())
                 val shift = tmpRectF.top - windowTransY0
                 tmpRectF.offset(mDx.value, -shift)
-                Log.d("ongsalt", "${tmpRectF.top} $windowTransY0")
+//                Log.d("ongsalt", "${tmpRectF.top} $windowTransY0")
 
                 // transform icon
                 floatingIconBounds.set(tmpRectF)
@@ -765,7 +773,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                         )
                         builder.setMatrix(matrix)
                             .setWindowCrop(crop)
-                            .setAlpha(1f - mIconAlpha.value)
+                            .setAlpha(mWindowAlpha.value)
                             .setCornerRadius(mWindowRadius.value)
                             .setShadowRadius(mShadowRadius.value)
                     } else if (target.mode == RemoteAnimationTarget.MODE_CLOSING) {
@@ -813,9 +821,14 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
 
         // If app targets are translucent, do not animate the background as it causes a visible
         // flicker when it resets itself at the end of its animation.
+        Log.d(
+            "ongsalt",
+            "appTargetsAreTranslucent: $appTargetsAreTranslucent, launcherClosing: $launcherClosing"
+        )
         if (appTargetsAreTranslucent || !launcherClosing) {
             animatorSet.play(appAnimator)
         } else {
+            Log.d("ongsalt", "Really play lacunher blur animation")
             animatorSet.playTogether(appAnimator, backgroundAnimator)
         }
         return animatorSet
@@ -988,9 +1001,14 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
 
         // If app targets are translucent, do not animate the background as it causes a visible
         // flicker when it resets itself at the end of its animation.
+        Log.d(
+            "ongsalt",
+            "appTargetsAreTranslucent: $appTargetsAreTranslucent, launcherClosing: $launcherClosing"
+        )
         if (appTargetsAreTranslucent || !launcherClosing) {
             animatorSet.play(appAnimator)
         } else {
+            Log.d("ongsalt", "Really play lacunher blur animation")
             animatorSet.playTogether(appAnimator, backgroundAnimator)
         }
         return animatorSet
@@ -1009,10 +1027,21 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             val backgroundRadiusAnim: ObjectAnimator = ObjectAnimator.ofFloat(
                 depthController.stateDepth,
                 MultiPropertyFactory.MULTI_PROPERTY_VALUE,
-                LauncherState.BACKGROUND_APP.getDepth(mLauncher)
+                LauncherState.BACKGROUND_APP.getDepth(mLauncher),
             )
-                .setDuration(APP_LAUNCH_DURATION)
+
+            backgroundRadiusAnim.interpolator = mOpeningInterpolator
+
+            // OK dimLayer just blur the floating icon too
+            // Solution: Start blurring after icon disappeared
+            backgroundRadiusAnim.startDelay =
+                (APP_LAUNCH_ALPHA_START_DELAY + APP_LAUNCH_ALPHA_DURATION).coerceAtMost(
+                    APP_LAUNCH_DURATION - APP_LAUNCH_ALPHA_DURATION
+                )
+            backgroundRadiusAnim.duration = APP_LAUNCH_DURATION - backgroundRadiusAnim.startDelay
+
             if (allowBlurringLauncher) {
+
                 // Create a temporary effect layer, that lives on top of launcher, so we can apply
                 // the blur to it. The EffectLayer will be fullscreen, which will help with caching
                 // optimizations on the SurfaceFlinger side:
@@ -1021,15 +1050,38 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 //   buffers
                 val viewRootImpl = mLauncher.dragLayer.viewRootImpl
                 val parent = viewRootImpl?.surfaceControl
-                val dimLayer = SurfaceControl.Builder()
+                val blurLayer = SurfaceControl.Builder()
                     .setName("Blur layer")
                     .setParent(parent)
                     .setOpaque(false)
                     .setHidden(false)
                     .setEffectLayer()
                     .build()
+                val dimLayer = SurfaceControl.Builder()
+                    .setName("Dim layer")
+                    .setParent(parent)
+                    .setOpaque(false)
+                    .setHidden(false)
+                    .setEffectLayer()
+                    .build()
+
+                val transaction = SurfaceControl.Transaction()
+                val black = FloatArray(3)
+                black.fill(0f)
+                transaction.setColor(dimLayer, black)
+
+                backgroundRadiusAnim.addUpdateListener {
+                    val value = it.animatedValue as Float
+                    val radius = (value * BACKGROUND_BLUR_RADIUS).toInt()
+                    Log.d("ongsalt", "radius $radius")
+
+                    transaction.setBackgroundBlurRadius(blurLayer, radius)
+                        .setAlpha(dimLayer, value / 4f).apply()
+
+                }
+
                 backgroundRadiusAnim.addListener(AnimatorListeners.forEndCallback(Runnable {
-                    SurfaceControl.Transaction().remove(dimLayer).apply()
+                    transaction.remove(blurLayer).remove(dimLayer).apply()
                 }))
             }
             return backgroundRadiusAnim
@@ -1972,6 +2024,8 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
         private val ENABLE_SHELL_STARTING_SURFACE =
             SystemProperties.getBoolean("persist.debug.shell_starting_surface", true)
 
+        const val BACKGROUND_BLUR_RADIUS = 108
+
         /** Duration of status bar animations.  */
         const val STATUS_BAR_TRANSITION_DURATION = 120
 
@@ -1982,9 +2036,9 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
         const val STATUS_BAR_TRANSITION_PRE_DELAY = 96
         private const val CONTROL_REMOTE_APP_TRANSITION_PERMISSION =
             "android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS"
-        private const val APP_LAUNCH_DURATION: Long = 600
-        private const val APP_LAUNCH_ALPHA_DURATION: Long = 50
-        private const val APP_LAUNCH_ALPHA_START_DELAY: Long = 80
+        private const val APP_LAUNCH_DURATION: Long = 800
+        private const val APP_LAUNCH_ALPHA_DURATION: Long = 25
+        private const val APP_LAUNCH_ALPHA_START_DELAY: Long = 25
         const val ANIMATION_NAV_FADE_IN_DURATION = 266
         const val ANIMATION_NAV_FADE_OUT_DURATION = 133
         const val ANIMATION_DELAY_NAV_FADE_IN = APP_LAUNCH_DURATION - ANIMATION_NAV_FADE_IN_DURATION

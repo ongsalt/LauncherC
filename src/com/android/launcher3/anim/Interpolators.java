@@ -60,7 +60,7 @@ public class Interpolators {
     /**
      * Default easing for iOS. I assumed their app opening animation use this too
      */
-    public static final Interpolator APPLE_EASE = new PathInterpolator(.23f, .06f, .1f, 1f);
+    public static final Interpolator APPLE_EASE = new PathInterpolator(.23f, .06f, 0f, 1f);
 
     /**
      * The default emphasized interpolator. Used for hero / emphasized movement of content.

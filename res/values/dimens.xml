@@ -444,7 +444,7 @@
     <dimen name="bottom_sheet_handle_corner_radius">2dp</dimen>
 
     <!-- State transition -->
-    <item name="workspace_content_scale" format="float" type="dimen">0.97</item>
+    <item name="workspace_content_scale" format="float" type="dimen">0.9</item>
 
     <!--  Folder spaces  -->
     <dimen name="folder_top_padding_default">24dp</dimen>
