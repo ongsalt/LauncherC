@@ -51,6 +51,7 @@ import android.view.View
 import android.view.ViewTreeObserver.OnDrawListener
 import android.view.WindowManager
 import android.view.animation.Interpolator
+import android.view.animation.LinearInterpolator
 import android.view.animation.PathInterpolator
 import android.window.RemoteTransition
 import android.window.StartingWindowInfo
@@ -136,7 +137,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
     // Will never be larger than MAX_NUM_TASKS
     private var mTaskStartParams: LinkedHashMap<Int, Pair<Int, Int>>? = null
     private val mOpeningInterpolator: Interpolator = Interpolators.APPLE_EASE
-    private val mOpeningYInterpolator: Interpolator = PathInterpolator(.15f, .56f, .1f, 1f)
+    private val mOpeningYInterpolator: Interpolator = PathInterpolator(.23f, .06f, .2f, 1f);
 
     init {
         mLauncher = Launcher.cast(Launcher.getLauncher(context))
@@ -444,7 +445,12 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                     ObjectAnimator.ofFloat(view, LauncherAnimUtils.SCALE_PROPERTY, *scales)
                         .setDuration(CONTENT_SCALE_DURATION.toLong())
                 scaleAnim.interpolator = Interpolators.DEACCEL_1_5
-                launcherAnimator.play(scaleAnim)
+                val alphaAnim =
+                    ObjectAnimator.ofFloat(view, LauncherAnimUtils.VIEW_ALPHA, 1f, .75f)
+                        .setDuration(CONTENT_SCALE_DURATION.toLong())
+                alphaAnim.interpolator = Interpolators.DEACCEL_1_5
+
+                launcherAnimator.playTogether(scaleAnim, alphaAnim)
             })
             val scrimEnabled = FeatureFlags.ENABLE_SCRIM_FOR_APP_LAUNCH.get()
             if (scrimEnabled) {
@@ -579,10 +585,10 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             windowTargetBounds, launcherIconBounds, v, dragLayerBounds[0], dragLayerBounds[1],
             hasSplashScreen, floatingView.isDifferentFromAppIcon
         )
-        val left = prop.cropCenterXStart - prop.cropWidthStart / 2
-        val top = prop.cropCenterYStart - prop.cropHeightStart / 2
-        val right = left + prop.cropWidthStart
-        val bottom = top + prop.cropHeightStart
+        val left = prop.rectLeftStart.toInt()
+        val top = prop.rectTopStart.toInt()
+        val right = prop.rectRightStart.toInt()
+        val bottom = prop.rectBottomStart.toInt()
         // Set the crop here so we can calculate the corner radius below.
         crop.set(left, top, right, bottom)
         val floatingIconBounds = RectF()
@@ -616,7 +622,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 openingTargets.release()
             }
         })
-        // TODO: Should depend on icon shape
+        // TODO: Assumed that icon shape is circle
         val initialWindowRadius =
             if (QuickStepContract.supportsRoundedCornersOnWindows(mLauncher.resources)) Math.max(
                 crop.width(),
@@ -629,21 +635,21 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             )
         val finalShadowRadius: Float = if (appTargetsAreTranslucent) 0f else mMaxShadowRadius
         val listener: MultiValueUpdateListener = object : MultiValueUpdateListener() {
-            var mDx = FloatProp(
-                0f, prop.dX, 0f, APP_LAUNCH_DURATION.toFloat(),
-                mOpeningInterpolator
+            var mCropRectLeft = FloatProp(
+                prop.rectLeftStart, prop.rectLeftEnd, 0f,
+                APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
             )
-            var mDy = FloatProp(
-                0f, prop.dY, 0f, APP_LAUNCH_DURATION.toFloat(),
-                mOpeningInterpolator
+            var mCropRectTop = FloatProp(
+                prop.rectTopStart, prop.rectTopEnd, 0f,
+                APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
             )
-            var mAnchorPad = FloatProp(
-                prop.anchorPad, 0f, 0f, APP_LAUNCH_DURATION.toFloat(),
-                mOpeningInterpolator
+            var mCropRectRight = FloatProp(
+                prop.rectRightStart, prop.rectRightEnd, 0f,
+                APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
             )
-            var mIconScaleToFitScreen = FloatProp(
-                prop.initialAppIconScale,
-                prop.finalAppIconScale, 0f, APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
+            var mCropRectBottom = FloatProp(
+                prop.rectBottomStart, prop.rectBottomEnd, 0f,
+                APP_LAUNCH_DURATION.toFloat(), mOpeningYInterpolator
             )
 
             var mIconAlpha = FloatProp(
@@ -655,7 +661,6 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 APP_LAUNCH_ALPHA_DURATION.toFloat(),
                 Interpolators.LINEAR
             )
-
             var mWindowAlpha = FloatProp(
                 0f,
                 1f,
@@ -663,23 +668,12 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 APP_LAUNCH_ALPHA_DURATION.toFloat(),
                 Interpolators.LINEAR
             )
-
-            // TODO: Should depend on scale
-            var mWindowRadius = FloatProp(
+            var mAbsoluteWindowRadius = FloatProp(
                 initialWindowRadius, finalWindowRadius, 0f,
-                APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
-            )
+                APP_LAUNCH_DURATION.toFloat(), Interpolators.DEACCEL_1_5)
             var mShadowRadius = FloatProp(
                 0f, finalShadowRadius, 0f,
                 APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
-            )
-            var mCropRectWidth = FloatProp(
-                prop.cropWidthStart.toFloat(), prop.cropWidthEnd.toFloat(), 0f,
-                APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
-            )
-            var mCropRectHeight = FloatProp(
-                prop.cropHeightStart.toFloat(), prop.cropHeightEnd.toFloat(), 0f,
-                APP_LAUNCH_DURATION.toFloat(), mOpeningYInterpolator
             )
             var mNavFadeOut = FloatProp(
                 1f, 0f, 0f, ANIMATION_NAV_FADE_OUT_DURATION.toFloat(),
@@ -690,53 +684,51 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 ANIMATION_NAV_FADE_IN_DURATION.toFloat(), NAV_FADE_IN_INTERPOLATOR
             )
 
-            var mWindowScale = FloatProp(
-                prop.initialWindowScale,
-                prop.finalWindowScale, 0f, APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
-            )
-
 
             override fun onUpdate(percent: Float, initOnly: Boolean) {
                 // calculate clip height with anchor
-                crop.bottom = mCropRectHeight.value.toInt()
-//                crop.bottom = 0
+                tmpRectF.set(
+                    mCropRectLeft.value,
+                    mCropRectTop.value,
+                    mCropRectRight.value,
+                    mCropRectBottom.value
+                )
+
+                Log.d("clip", "tmp $tmpRectF")
+
+                // Should scale smallest size to fit tmpRect
+                val smallestCropSize = Math.min(tmpRectF.height(), tmpRectF.width())
+
                 // calculate app scale with anchor
-                val scale = mWindowScale.value
-                val scaleY = mCropRectHeight.value / mCropRectWidth.value
-                val scaledCropWidth = mCropRectWidth.value
-                val scaledCropHeight = mCropRectHeight.value
+                val scale = smallestCropSize / prop.smallestWindowSize
+                val scaledCropWidth = tmpRectF.width()
+                val scaledCropHeight = tmpRectF.height()
+                val scaledCornerRadius = mAbsoluteWindowRadius.value / scale
 
-                val centerAnchorOffsetX = windowTargetBounds.width() * scale / 2
-                val centerAnchorOffsetY = windowTargetBounds.height() * scale / 2
-
-                // windows position
-                val initX = launcherIconBounds.centerX()
-                val initY = launcherIconBounds.centerY()
+                crop.left = 0
+                crop.top = 0
+                // TODO: Check device aspect ratio
+                if (true) {
+                    crop.bottom = (tmpRectF.height() / scale).toInt()
+                    crop.right = prop.rectRightEnd.toInt()
+                } else {
+                    crop.bottom = prop.rectBottomEnd.toInt()
+                    crop.right = (tmpRectF.width() / scale).toInt()
+                }
+                Log.d("clip", "crop $crop")
 
                 val windowTransX0 =
-                    initX + mDx.value - centerAnchorOffsetX + dragLayerBounds[0].toFloat()
+                    tmpRectF.left + dragLayerBounds[0].toFloat()
                 val windowTransY0 =
-                    initY + mDy.value - centerAnchorOffsetY + dragLayerBounds[1].toFloat() + mAnchorPad.value
+                    tmpRectF.top + dragLayerBounds[1].toFloat()
 
-                tmpRectF.set(launcherIconBounds)
-                Utilities.scaleRectFAboutCenter(
-                    tmpRectF,
-                    mIconScaleToFitScreen.value,
-                    mIconScaleToFitScreen.value * scaleY
-                )
-                tmpRectF.offset(dragLayerBounds[0].toFloat(), dragLayerBounds[1].toFloat())
-                val shift = tmpRectF.top - windowTransY0
-                tmpRectF.offset(mDx.value, -shift)
-//                Log.d("ongsalt", "${tmpRectF.top} $windowTransY0")
-
-                // transform icon
                 floatingIconBounds.set(tmpRectF)
 
                 if (initOnly) {
                     // For the init pass, we want full alpha since the window is not yet ready.
                     floatingView.update(
                         1f, 255, floatingIconBounds, percent, 0f,
-                        mWindowRadius.value * scale, true /* isOpening */
+                        mAbsoluteWindowRadius.value, true /* isOpening */
                     )
                     return
                 }
@@ -769,12 +761,12 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                         }
                         floatingView.update(
                             mIconAlpha.value, 255, floatingIconBounds, percent, 0f,
-                            mWindowRadius.value * scale, true /* isOpening */
+                            mAbsoluteWindowRadius.value, true /* isOpening */
                         )
                         builder.setMatrix(matrix)
                             .setWindowCrop(crop)
                             .setAlpha(mWindowAlpha.value)
-                            .setCornerRadius(mWindowRadius.value)
+                            .setCornerRadius(scaledCornerRadius)
                             .setShadowRadius(mShadowRadius.value)
                     } else if (target.mode == RemoteAnimationTarget.MODE_CLOSING) {
                         if (Utilities.ATLEAST_R && target.localBounds != null) {
@@ -1024,6 +1016,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             val allowBlurringLauncher = (mLauncher.stateManager.state !== LauncherState.OVERVIEW
                     && BlurUtils.supportsBlursOnWindows())
             val depthController = MyDepthController(mLauncher)
+
             val backgroundRadiusAnim: ObjectAnimator = ObjectAnimator.ofFloat(
                 depthController.stateDepth,
                 MultiPropertyFactory.MULTI_PROPERTY_VALUE,
@@ -1034,10 +1027,10 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
 
             // OK dimLayer just blur the floating icon too
             // Solution: Start blurring after icon disappeared
-            backgroundRadiusAnim.startDelay =
-                (APP_LAUNCH_ALPHA_START_DELAY + APP_LAUNCH_ALPHA_DURATION).coerceAtMost(
-                    APP_LAUNCH_DURATION - APP_LAUNCH_ALPHA_DURATION
-                )
+            backgroundRadiusAnim.startDelay = 0
+//                (APP_LAUNCH_ALPHA_START_DELAY + APP_LAUNCH_ALPHA_DURATION).coerceAtMost(
+//                    APP_LAUNCH_DURATION - APP_LAUNCH_ALPHA_DURATION
+//                )
             backgroundRadiusAnim.duration = APP_LAUNCH_DURATION - backgroundRadiusAnim.startDelay
 
             if (allowBlurringLauncher) {
@@ -1076,7 +1069,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                     Log.d("ongsalt", "radius $radius")
 
                     transaction.setBackgroundBlurRadius(blurLayer, radius)
-                        .setAlpha(dimLayer, value / 4f).apply()
+                        .setAlpha(dimLayer, value / 5f).apply()
 
                 }
 
@@ -1343,20 +1336,29 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
     }
 
     private val defaultWindowTargetRect: RectF
+        //        private get() {
+//            val recentsView = mLauncher.getOverviewPanel<RecentsView<*, *>>()
+//            val orientationHandler = recentsView.pagedOrientationHandler
+//            val dp = mLauncher.deviceProfile
+//            val halfIconSize = dp.iconSizePx / 2
+//            val primaryDimension = orientationHandler
+//                .getPrimaryValue(dp.availableWidthPx, dp.availableHeightPx).toFloat()
+//            val secondaryDimension = orientationHandler
+//                .getSecondaryValue(dp.availableWidthPx, dp.availableHeightPx).toFloat()
+//            val targetX = primaryDimension / 2f
+//            val targetY = secondaryDimension - dp.hotseatBarSizePx
+//            return RectF(
+//                targetX - halfIconSize, targetY - halfIconSize,
+//                targetX + halfIconSize, targetY + halfIconSize
+//            )
+//        }
         private get() {
-            val recentsView = mLauncher.getOverviewPanel<RecentsView<*, *>>()
-            val orientationHandler = recentsView.pagedOrientationHandler
             val dp = mLauncher.deviceProfile
-            val halfIconSize = dp.iconSizePx / 2
-            val primaryDimension = orientationHandler
-                .getPrimaryValue(dp.availableWidthPx, dp.availableHeightPx).toFloat()
-            val secondaryDimension = orientationHandler
-                .getSecondaryValue(dp.availableWidthPx, dp.availableHeightPx).toFloat()
-            val targetX = primaryDimension / 2f
-            val targetY = secondaryDimension - dp.hotseatBarSizePx
+            val x = dp.widthPx / 2f
+            val y = dp.heightPx / 2f
             return RectF(
-                targetX - halfIconSize, targetY - halfIconSize,
-                targetX + halfIconSize, targetY + halfIconSize
+                x, y,
+                x, y
             )
         }
 
@@ -1479,6 +1481,8 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 )
             )
         }
+
+        Log.d("closing", "$targetRect")
 
         // Use a fixed velocity to start the animation.
         animation.addListener(object : AnimatorListenerAdapter() {
@@ -1822,34 +1826,26 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
         launcherIconBounds: RectF, view: View, dragLayerLeft: Int, dragLayerTop: Int,
         hasSplashScreen: Boolean, hasDifferentAppIcon: Boolean
     ) {
-        val cropCenterXStart: Int
-        val cropCenterYStart: Int
-        val cropWidthStart: Int
-        val cropHeightStart: Int
-        val cropCenterXEnd: Int
-        val cropCenterYEnd: Int
-        val cropWidthEnd: Int
-        val cropHeightEnd: Int
-        val dX: Float
-        val dY: Float
+        val rectLeftStart: Float
+        val rectTopStart: Float
+        val rectRightStart: Float
+        val rectBottomStart: Float
+        val rectLeftEnd: Float
+        val rectTopEnd: Float
+        val rectRightEnd: Float
+        val rectBottomEnd: Float
+
         val initialAppIconScale: Float
         val finalAppIconScale: Float
-        val initialAppIconScaleX: Float
-        val finalAppIconScaleX: Float
-        val initialAppIconScaleY: Float
-        val finalAppIconScaleY: Float
-        val initialWindowScale: Float
-        val finalWindowScale: Float
-        val anchorPad: Float
         val iconAlphaStart: Float
+        val smallestWindowSize: Float
 
         init {
             // Scale the app icon to take up the entire screen. This simplifies the math when
             // animating the app window position / scale.
-            val smallestWindowSize =
+            smallestWindowSize =
                 Math.min(windowTargetBounds.height(), windowTargetBounds.width()).toFloat()
-            val largestIconSize =
-                Math.max(launcherIconBounds.height(), launcherIconBounds.width()).toFloat()
+
             val maxScaleX = smallestWindowSize / launcherIconBounds.width()
             val maxScaleY = smallestWindowSize / launcherIconBounds.height()
             var iconStartScale = 1f
@@ -1859,48 +1855,21 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                     iconStartScale = dr.animatedScale
                 }
             }
-            initialAppIconScaleX = iconStartScale
-            initialAppIconScaleY = iconStartScale
-
-            finalAppIconScaleX = windowTargetBounds.width() / launcherIconBounds.width()
-            finalAppIconScaleY = windowTargetBounds.height() / launcherIconBounds.height()
 
             initialAppIconScale = iconStartScale
             finalAppIconScale = Math.max(maxScaleX, maxScaleY)
 
-            initialWindowScale = largestIconSize / smallestWindowSize
-            finalWindowScale = 1f
-
-            anchorPad =
-                (windowTargetBounds.height() * initialWindowScale - launcherIconBounds.height()) / 2
-
-            // Animate the app icon to the center of the window bounds in screen coordinates.
-            val centerX = (windowTargetBounds.centerX() - dragLayerLeft).toFloat()
-            val centerY = (windowTargetBounds.centerY() - dragLayerTop).toFloat()
-            dX = centerX - launcherIconBounds.centerX()
-            dY = centerY - launcherIconBounds.centerY()
             iconAlphaStart = if (hasSplashScreen && !hasDifferentAppIcon) 0f else 1f
-            val windowIconSize = ResourceUtils.getDimenByName(
-                "starting_surface_icon_size",
-                r, 108
-            )
-            cropCenterXStart = windowTargetBounds.centerX()
-            cropCenterYStart = windowTargetBounds.centerX()
-            cropWidthStart = windowTargetBounds.width()
-            cropHeightStart = windowTargetBounds.width()
-            cropWidthEnd = windowTargetBounds.width()
-            cropHeightEnd = windowTargetBounds.height()
-            cropCenterXEnd = windowTargetBounds.centerX()
-            cropCenterYEnd = windowTargetBounds.centerY()
 
-//            cropCenterXStart = windowTargetBounds.centerX()
-//            cropCenterYStart = windowTargetBounds.centerY()
-//            cropWidthStart = windowTargetBounds.width()
-//            cropHeightStart = windowTargetBounds.height()
-//            cropWidthEnd = windowTargetBounds.width()
-//            cropHeightEnd = windowTargetBounds.height()
-//            cropCenterXEnd = windowTargetBounds.centerX()
-//            cropCenterYEnd = windowTargetBounds.centerY()
+            rectLeftStart = launcherIconBounds.left
+            rectTopStart = launcherIconBounds.top
+            rectRightStart = launcherIconBounds.right
+            rectBottomStart = launcherIconBounds.bottom
+
+            rectLeftEnd = windowTargetBounds.left.toFloat()
+            rectTopEnd = windowTargetBounds.top.toFloat()
+            rectRightEnd = windowTargetBounds.right.toFloat()
+            rectBottomEnd = windowTargetBounds.bottom.toFloat()
         }
     }
 
@@ -2024,7 +1993,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
         private val ENABLE_SHELL_STARTING_SURFACE =
             SystemProperties.getBoolean("persist.debug.shell_starting_surface", true)
 
-        const val BACKGROUND_BLUR_RADIUS = 108
+        const val BACKGROUND_BLUR_RADIUS = 120
 
         /** Duration of status bar animations.  */
         const val STATUS_BAR_TRANSITION_DURATION = 120
@@ -2037,8 +2006,8 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
         private const val CONTROL_REMOTE_APP_TRANSITION_PERMISSION =
             "android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS"
         private const val APP_LAUNCH_DURATION: Long = 800
-        private const val APP_LAUNCH_ALPHA_DURATION: Long = 25
-        private const val APP_LAUNCH_ALPHA_START_DELAY: Long = 25
+        private const val APP_LAUNCH_ALPHA_DURATION: Long = 40
+        private const val APP_LAUNCH_ALPHA_START_DELAY: Long = 20
         const val ANIMATION_NAV_FADE_IN_DURATION = 266
         const val ANIMATION_NAV_FADE_OUT_DURATION = 133
         const val ANIMATION_DELAY_NAV_FADE_IN = APP_LAUNCH_DURATION - ANIMATION_NAV_FADE_IN_DURATION
@@ -2053,15 +2022,15 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
         private const val CLOSING_TRANSITION_DURATION_MS = 250
         const val SPLIT_LAUNCH_DURATION = 370
         const val SPLIT_DIVIDER_ANIM_DURATION = 100
-        const val CONTENT_ALPHA_DURATION = 217
+        const val CONTENT_ALPHA_DURATION = APP_LAUNCH_DURATION
         const val TRANSIENT_TASKBAR_TRANSITION_DURATION = 417
         const val TASKBAR_TO_APP_DURATION = 600
 
         // TODO(b/236145847): Tune TASKBAR_TO_HOME_DURATION to 383 after conflict with unlock animation
         // is solved.
         const val TASKBAR_TO_HOME_DURATION = 300
-        protected const val CONTENT_SCALE_DURATION = 350
-        protected const val CONTENT_SCRIM_DURATION = 350
+        protected const val CONTENT_SCALE_DURATION = APP_LAUNCH_DURATION
+        protected const val CONTENT_SCRIM_DURATION = APP_LAUNCH_DURATION
         private const val MAX_NUM_TASKS = 5
 
         // Cross-fade duration between App Widget and App
