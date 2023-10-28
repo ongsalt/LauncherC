@@ -147,7 +147,7 @@ public class ClipIconView extends View implements ClipPathView {
      * Update the icon UI to match the provided parameters during an animation frame
      */
     public void update(RectF rect, float progress, float shapeProgressStart, float cornerRadius,
-            int fgIconAlpha, boolean isOpening, View container, DeviceProfile dp) {
+                       int fgIconAlpha, boolean isOpening, View container, DeviceProfile dp) {
         MarginLayoutParams lp = (MarginLayoutParams) container.getLayoutParams();
 
         float dX = mIsRtl
@@ -179,8 +179,8 @@ public class ClipIconView extends View implements ClipPathView {
     }
 
     private void update(RectF rect, float progress, float shapeProgressStart, float cornerRadius,
-            int fgIconAlpha, boolean isOpening, float scale, float minSize,
-            MarginLayoutParams parentLp, DeviceProfile dp) {
+                        int fgIconAlpha, boolean isOpening, float scale, float minSize,
+                        MarginLayoutParams parentLp, DeviceProfile dp) {
         float dX = mIsRtl
                 ? rect.left - (dp.widthPx - parentLp.getMarginStart() - parentLp.width)
                 : rect.left - parentLp.getMarginStart();
@@ -235,12 +235,10 @@ public class ClipIconView extends View implements ClipPathView {
             } else {
                 mForeground.setAlpha(fgIconAlpha);
 
-                // Spring the foreground relative to the icon's movement within the DragLayer.
-                int diffX = (int) (dX / dp.availableWidthPx * FG_TRANS_X_FACTOR);
-                int diffY = (int) (dY / dp.availableHeightPx * FG_TRANS_Y_FACTOR);
+                // No, not going to spring the foreground anymore
 
-                mFgSpringX.animateToFinalPosition(diffX);
-                mFgSpringY.animateToFinalPosition(diffY);
+                mFgSpringX.animateToFinalPosition(0);
+                mFgSpringY.animateToFinalPosition(0);
             }
         }
         invalidate();
@@ -269,7 +267,7 @@ public class ClipIconView extends View implements ClipPathView {
      * Sets the icon for this view as part of initial setup
      */
     public void setIcon(@Nullable Drawable drawable, int iconOffset, MarginLayoutParams lp,
-            boolean isOpening, DeviceProfile dp) {
+                        boolean isOpening, DeviceProfile dp) {
         mIsAdaptiveIcon = drawable instanceof AdaptiveIconDrawable;
         if (mIsAdaptiveIcon) {
             boolean isFolderIcon = drawable instanceof FolderAdaptiveIcon;

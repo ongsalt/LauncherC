@@ -22,6 +22,7 @@ import android.content.Context;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.util.Log;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
@@ -122,15 +123,16 @@ public class RectFSpringAnim extends ReleaseCheck {
 
     @Retention(SOURCE)
     @IntDef(value = {TRACKING_TOP,
-                    TRACKING_CENTER,
-                    TRACKING_BOTTOM})
-    public @interface Tracking{}
+            TRACKING_CENTER,
+            TRACKING_BOTTOM})
+    public @interface Tracking {
+    }
 
     @Tracking
     public final int mTracking;
 
     public RectFSpringAnim(RectF startRect, RectF targetRect, Context context,
-            @Nullable DeviceProfile deviceProfile) {
+                           @Nullable DeviceProfile deviceProfile) {
         mStartRect = startRect;
         mTargetRect = targetRect;
         mCurrentCenterX = mStartRect.centerX();
@@ -211,7 +213,8 @@ public class RectFSpringAnim extends ReleaseCheck {
 
     /**
      * Starts the fling/spring animation.
-     * @param context The activity context.
+     *
+     * @param context         The activity context.
      * @param velocityPxPerMs Velocity of swipe in px/ms.
      */
     public void start(Context context, @Nullable DeviceProfile profile, PointF velocityPxPerMs) {
@@ -229,10 +232,13 @@ public class RectFSpringAnim extends ReleaseCheck {
         // rect from straying too from a linear path.
         final float xVelocityPxPerS = velocityPxPerMs.x * 1000;
         final float yVelocityPxPerS = velocityPxPerMs.y * 1000;
-        final float dampedXVelocityPxPerS = OverScroll.dampedScroll(
-                Math.abs(xVelocityPxPerS), mMaxVelocityPxPerS) * Math.signum(xVelocityPxPerS);
-        final float dampedYVelocityPxPerS = OverScroll.dampedScroll(
-                Math.abs(yVelocityPxPerS), mMaxVelocityPxPerS) * Math.signum(yVelocityPxPerS);
+
+        // TODO: Change scroll damping logic
+        final float dampedXVelocityPxPerS = xVelocityPxPerS;
+        final float dampedYVelocityPxPerS = yVelocityPxPerS;
+
+        Log.d("Closing", "velocity start: " + xVelocityPxPerS + " " + yVelocityPxPerS);
+        Log.d("Closing", "velocity damped: " + dampedXVelocityPxPerS + " " + dampedYVelocityPxPerS);
 
         float startX = mCurrentCenterX;
         float endX = mTargetRect.centerX();
@@ -250,6 +256,7 @@ public class RectFSpringAnim extends ReleaseCheck {
                 mMinVisChange, minYValue, maxYValue, onYEndListener);
 
         float minVisibleChange = Math.abs(1f / mStartRect.height());
+        Log.d("Closing", "minVisibleChange " + minVisibleChange);
         ResourceProvider rp = DynamicResource.provider(context);
         float damping = rp.getFloat(R.dimen.swipe_up_rect_scale_damping_ratio);
 
@@ -262,15 +269,30 @@ public class RectFSpringAnim extends ReleaseCheck {
 
         mRectScaleAnim = new SpringAnimation(this, RECT_SCALE_PROGRESS)
                 .setSpring(new SpringForce(1f)
-                .setDampingRatio(damping)
-                .setStiffness(stiffness))
+                        .setDampingRatio(damping)
+                        .setStiffness(stiffness))
                 .setStartVelocity(velocityPxPerMs.y * minVisibleChange)
-                .setMaxValue(1f)
+                .setMaxValue(4f)
                 .setMinimumVisibleChange(minVisibleChange)
                 .addEndListener((animation, canceled, value, velocity) -> {
+                    Log.d("Closing", "value " + value + ", velocity" + velocity);
                     mRectScaleAnimEnded = true;
                     maybeOnEnd();
                 });
+
+//        float startScale = mCurrentScaleProgress;
+//        float endScale = 1f;
+//        float minScaleValue = Math.min(startScale, endScale);
+//        float maxScaleValue = Math.max(startScale, endScale);
+
+//        mRectScaleAnim = new FlingSpringAnim(this, context, RECT_SCALE_PROGRESS, startScale, endScale,
+//                velocityPxPerMs.y * minVisibleChange, minVisibleChange, minScaleValue, maxScaleValue,
+//                (animation, canceled, value, velocity) -> {
+//                    Log.d("Closing", "value " + value + ", velocity " + velocity);
+//                    mRectScaleAnimEnded = true;
+//                    maybeOnEnd();
+//                });
+
 
         setCanRelease(false);
         mAnimsStarted = true;
@@ -287,6 +309,7 @@ public class RectFSpringAnim extends ReleaseCheck {
         if (mAnimsStarted) {
             mRectXAnim.end();
             mRectYAnim.end();
+//            mRectScaleAnim.end();
             if (mRectScaleAnim.canSkipToEnd()) {
                 mRectScaleAnim.skipToEnd();
             }
@@ -361,11 +384,13 @@ public class RectFSpringAnim extends ReleaseCheck {
     public interface OnUpdateListener {
         /**
          * Called when an update is made to the animation.
+         *
          * @param currentRect The rect of the window.
-         * @param progress [0, 1] The progress of the rect scale animation.
+         * @param progress    [0, 1] The progress of the rect scale animation.
          */
         void onUpdate(RectF currentRect, float progress);
 
-        default void onCancel() { }
+        default void onCancel() {
+        }
     }
 }
