@@ -162,13 +162,21 @@ public class SwipePipToHomeAnimator extends RectFSpringAnim {
             t.reparent(mContentOverlay, mLeash);
             t.apply();
 
-            addOnUpdateListener((currentRect, progress) -> {
-                float alpha = progress < 0.5f
-                        ? 0
-                        : Utilities.mapToRange(Math.min(progress, 1f), 0.5f, 1f,
-                                0f, 1f, Interpolators.FAST_OUT_SLOW_IN);
-                t.setAlpha(mContentOverlay, alpha);
-                t.apply();
+            addOnUpdateListener(new RectFSpringAnim.OnUpdateListener() {
+                @Override
+                public void onUpdate(@Nullable RectF currentRect, float progress) {
+                    float alpha = progress < 0.5f
+                            ? 0
+                            : Utilities.mapToRange(Math.min(progress, 1f), 0.5f, 1f,
+                            0f, 1f, Interpolators.FAST_OUT_SLOW_IN);
+                    t.setAlpha(mContentOverlay, alpha);
+                    t.apply();
+
+                }
+
+                @Override
+                public void onCancel() {
+                }
             });
         } else {
             mSourceRectHint.set(sourceRectHint);
@@ -203,7 +211,16 @@ public class SwipePipToHomeAnimator extends RectFSpringAnim {
                 mHasAnimationEnded = true;
             }
         });
-        addOnUpdateListener(this::onAnimationUpdate);
+        addOnUpdateListener(new RectFSpringAnim.OnUpdateListener() {
+            @Override
+            public void onUpdate(@Nullable RectF currentRect, float progress) {
+                onAnimationUpdate(currentRect, progress);
+            }
+
+            @Override
+            public void onCancel() {
+            }
+        });
     }
 
     private void onAnimationUpdate(RectF currentRect, float progress) {

@@ -641,7 +641,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             )
             var mCropRectTop = FloatProp(
                 prop.rectTopStart, prop.rectTopEnd, 0f,
-                APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
+                APP_LAUNCH_DURATION.toFloat(), mOpeningYInterpolator
             )
             var mCropRectRight = FloatProp(
                 prop.rectRightStart, prop.rectRightEnd, 0f,
@@ -670,7 +670,8 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             )
             var mAbsoluteWindowRadius = FloatProp(
                 initialWindowRadius, finalWindowRadius, 0f,
-                APP_LAUNCH_DURATION.toFloat(), Interpolators.DEACCEL_1_5)
+                APP_LAUNCH_DURATION.toFloat(), Interpolators.DEACCEL_1_5
+            )
             var mShadowRadius = FloatProp(
                 0f, finalShadowRadius, 0f,
                 APP_LAUNCH_DURATION.toFloat(), mOpeningInterpolator
@@ -1428,12 +1429,12 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 targets, targetRect,
                 windowTargetBounds, startWindowCornerRadius
             ) {
-                override fun onUpdate(currentRectF: RectF, progress: Float) {
+                override fun onUpdate(currentRect: RectF?, progress: Float) {
                     finalFloatingIconView.update(
-                        1f, 255 /* fgAlpha */, currentRectF, progress,
+                        1f, 255 /* fgAlpha */, currentRect!!, progress,
                         windowAlphaThreshold, getCornerRadius(progress), false
                     )
-                    super.onUpdate(currentRectF, progress)
+                    super.onUpdate(currentRect!!, progress)
                 }
             }
             anim.addOnUpdateListener(runner)
@@ -1447,7 +1448,8 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 targets, targetRect,
                 windowTargetBounds, startWindowCornerRadius
             ) {
-                override fun onUpdate(currentRectF: RectF, progress: Float) {
+                override fun onUpdate(currentRectF: RectF?, progress: Float) {
+
                     val fallbackBackgroundAlpha = 1 - Utilities.mapBoundToRange(
                         progress,
                         0.8f,
@@ -1468,7 +1470,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                         currentRectF, floatingWidgetAlpha, foregroundAlpha,
                         fallbackBackgroundAlpha, 1 - progress
                     )
-                    super.onUpdate(currentRectF, progress)
+                    super.onUpdate(currentRectF!!, progress)
                 }
             }
             anim.addOnUpdateListener(runner)
@@ -1482,12 +1484,17 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             )
         }
 
-        Log.d("closing", "$targetRect")
+//        Log.d("Closing", "targetRect: $targetRect")
 
         // Use a fixed velocity to start the animation.
         animation.addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationStart(animation: Animator) {
-                anim.start(mLauncher, mDeviceProfile, velocityPxPerS)
+                anim.start(mLauncher, mDeviceProfile, PointF(0f, 0f))
+            }
+
+            override fun onAnimationEnd(animation: Animator?) {
+                super.onAnimationEnd(animation)
+                Log.d("Closing", "animation ended")
             }
         })
         return anim
@@ -1652,9 +1659,10 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 && !playFallBackAnimation
             ) {
                 // Use a fixed velocity to start the animation.
+                // TODO: Not using a fixed velocity
                 val velocityPxPerS = DynamicResource.provider(mLauncher)
                     .getDimension(R.dimen.unlock_staggered_velocity_dp_per_s)
-                val velocity = PointF(0f, -velocityPxPerS)
+                val velocity = PointF(-velocityPxPerS, -velocityPxPerS)
                 rectFSpringAnim = getClosingWindowAnimators(
                     anim, appTargets, launcherView, velocity, startRect,
                     startWindowCornerRadius
@@ -1662,7 +1670,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                 if (!mLauncher.isInState(LauncherState.ALL_APPS)) {
                     anim.play(
                         StaggeredWorkspaceAnim(
-                            mLauncher, velocity.y,
+                            mLauncher, 0f, // velocity.y
                             true /* animateOverviewScrim */, launcherView
                         ).animators
                     )
@@ -1909,7 +1917,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
             return Utilities.mapRange(progress, mStartRadius, mEndRadius)
         }
 
-        override fun onUpdate(currentRectF: RectF, progress: Float) {
+        override fun onUpdate(currentRectF: RectF?, progress: Float) {
             val transaction = SurfaceTransaction()
             for (i in mAppTargets.indices.reversed()) {
                 val target = mAppTargets[i]
@@ -1920,7 +1928,7 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                     mTmpPos[target.position.x] = target.position.y
                 }
                 if (target.mode == RemoteAnimationTarget.MODE_CLOSING) {
-                    currentRectF.round(mCurrentRect)
+                    currentRectF!!.round(mCurrentRect)
 
                     // Scale the target window to match the currentRectF.
                     val scale: Float
@@ -1930,14 +1938,18 @@ class QuickstepTransitionManager(context: Context?) : OnDeviceProfileChangeListe
                         scale = Math.min(1f, currentRectF.width() / mWindowTargetBounds.width())
                         val unscaledHeight = (mCurrentRect.height() * (1f / scale)).toInt()
                         val croppedHeight = mWindowTargetBounds.height() - unscaledHeight
-                        mTmpRect[0, 0, mWindowTargetBounds.width()] =
+                        mTmpRect.set(
+                            0, 0, mWindowTargetBounds.width(),
                             mWindowTargetBounds.height() - croppedHeight
+                        )
                     } else {
                         scale = Math.min(1f, currentRectF.height() / mWindowTargetBounds.height())
                         val unscaledWidth = (mCurrentRect.width() * (1f / scale)).toInt()
                         val croppedWidth = mWindowTargetBounds.width() - unscaledWidth
-                        mTmpRect[0, 0, mWindowTargetBounds.width() - croppedWidth] =
+                        mTmpRect.set(
+                            0, 0, mWindowTargetBounds.width() - croppedWidth,
                             mWindowTargetBounds.height()
+                        )
                     }
 
                     // Match size and position of currentRect.

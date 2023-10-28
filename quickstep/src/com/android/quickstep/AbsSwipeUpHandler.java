@@ -187,6 +187,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
             };
 
     private static int FLAG_COUNT = 0;
+
     private static int getNextStateFlag(String name) {
         if (DEBUG_STATES) {
             STATE_NAMES.add(name);
@@ -289,7 +290,8 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     private AnimatorControllerWithResistance mLauncherTransitionController;
     private boolean mHasEndedLauncherTransition;
 
-    private AnimationFactory mAnimationFactory = (t) -> { };
+    private AnimationFactory mAnimationFactory = (t) -> {
+    };
 
     private boolean mWasLauncherAlreadyVisible;
 
@@ -328,9 +330,9 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     private RemoteAnimationTargets.ReleaseCheck mSwipePipToHomeReleaseCheck = null;
 
     public AbsSwipeUpHandler(Context context, RecentsAnimationDeviceState deviceState,
-            TaskAnimationManager taskAnimationManager, GestureState gestureState,
-            long touchTimeMs, boolean continuingLastGesture,
-            InputConsumerController inputConsumer) {
+                             TaskAnimationManager taskAnimationManager, GestureState gestureState,
+                             long touchTimeMs, boolean continuingLastGesture,
+                             InputConsumerController inputConsumer) {
         super(context, deviceState, gestureState);
         mActivityInterface = gestureState.getActivityInterface();
         mActivityInitListener = mActivityInterface.createActivityInitListener(this::onActivityInit);
@@ -502,20 +504,20 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
         // Set up a entire animation lifecycle callback to notify the current recents view when
         // the animation is canceled
         mGestureState.runOnceAtState(STATE_RECENTS_ANIMATION_CANCELED, () -> {
-                HashMap<Integer, ThumbnailData> snapshots =
-                        mGestureState.consumeRecentsAnimationCanceledSnapshot();
-                if (snapshots != null) {
-                    mRecentsView.switchToScreenshot(snapshots, () -> {
-                        if (mRecentsAnimationController != null) {
-                            mRecentsAnimationController.cleanupScreenshot();
-                        } else if (mDeferredCleanupRecentsAnimationController != null) {
-                            mDeferredCleanupRecentsAnimationController.cleanupScreenshot();
-                            mDeferredCleanupRecentsAnimationController = null;
-                        }
-                    });
-                    mRecentsView.onRecentsAnimationComplete();
-                }
-            });
+            HashMap<Integer, ThumbnailData> snapshots =
+                    mGestureState.consumeRecentsAnimationCanceledSnapshot();
+            if (snapshots != null) {
+                mRecentsView.switchToScreenshot(snapshots, () -> {
+                    if (mRecentsAnimationController != null) {
+                        mRecentsAnimationController.cleanupScreenshot();
+                    } else if (mDeferredCleanupRecentsAnimationController != null) {
+                        mDeferredCleanupRecentsAnimationController.cleanupScreenshot();
+                        mDeferredCleanupRecentsAnimationController = null;
+                    }
+                });
+                mRecentsView.onRecentsAnimationComplete();
+            }
+        });
 
         setupRecentsViewUi();
         mRecentsView.runOnPageScrollsInitialized(this::linkRecentsViewScroll);
@@ -703,9 +705,10 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
      * Determines whether to show or hide RecentsView. The window is always
      * synchronized with its corresponding TaskView in RecentsView, so if
      * RecentsView is shown, it will appear to be attached to the window.
-     *
+     * <p>
      * Note this method has no effect unless the navigation mode is NO_BUTTON.
-     * @param animate whether to animate when attaching RecentsView
+     *
+     * @param animate         whether to animate when attaching RecentsView
      * @param moveFocusedTask whether to move focused task to front when attaching
      */
     private void maybeUpdateRecentsAttachedState(boolean animate, boolean moveFocusedTask) {
@@ -783,6 +786,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     /**
      * We don't want to change mLauncherTransitionController if mGestureState.getEndTarget() == HOME
      * (it has its own animation) or if we explicitly ended the controller already.
+     *
      * @return Whether we can create the launcher controller or update its progress.
      */
     private boolean canCreateNewOrUpdateExistingLauncherTransitionController() {
@@ -852,7 +856,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
 
             // We will handle the sysui flags based on the centermost task view.
             mRecentsAnimationController.setUseLauncherSystemBarFlags(swipeUpThresholdPassed
-                    ||  (quickswitchThresholdPassed && centermostTaskFlags != 0));
+                    || (quickswitchThresholdPassed && centermostTaskFlags != 0));
             mRecentsAnimationController.setSplitScreenMinimized(mContext, swipeUpThresholdPassed);
             // Provide a hint to WM the direction that we will be settling in case the animation
             // needs to be canceled
@@ -869,7 +873,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
 
     @Override
     public void onRecentsAnimationStart(RecentsAnimationController controller,
-            RecentsAnimationTargets targets) {
+                                        RecentsAnimationTargets targets) {
         super.onRecentsAnimationStart(controller, targets);
         mRemoteTargetHandles = mTargetGluer.assignTargetsForSplitScreen(mContext, targets);
         mRecentsAnimationController = controller;
@@ -971,6 +975,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     /**
      * Sets whether or not we should clamp the scroll offset.
      * This is used to avoid x-axis movement when swiping up transient taskbar.
+     *
      * @param clampScrollOffset When true, we clamp the scroll to 0 before the clamp threshold is
      *                          met.
      */
@@ -1013,8 +1018,8 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     /**
      * @param endVelocityPxPerMs The velocity in the direction of the nav bar to the middle of the
      *                           screen.
-     * @param velocityPxPerMs The x and y components of the velocity when the gesture ends.
-     * @param downPos The x and y value of where the gesture started.
+     * @param velocityPxPerMs    The x and y components of the velocity when the gesture ends.
+     * @param downPos            The x and y value of where the gesture started.
      */
     @UiThread
     public void onGestureEnded(float endVelocityPxPerMs, PointF velocityPxPerMs, PointF downPos) {
@@ -1112,7 +1117,9 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
                 /* gestureEvent= */ ON_SETTLED_ON_END_TARGET);
     }
 
-    /** @return Whether this was the task we were waiting to appear, and thus handled it. */
+    /**
+     * @return Whether this was the task we were waiting to appear, and thus handled it.
+     */
     protected boolean handleTaskAppeared(RemoteAnimationTarget[] appearedTaskTarget) {
         if (mStateCallback.hasStates(STATE_HANDLER_INVALIDATED)) {
             return false;
@@ -1210,10 +1217,10 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     /**
      * Sets whether a slow swipe can go to the HOME end target when the user lets go. A slow swipe
      * for this purpose must meet two criteria:
-     *   1) y-velocity is less than quickstep_fling_threshold_speed
-     *   AND
-     *   2) motion pause has not been detected (possibly because
-     *   {@link MotionPauseDetector#setDisallowPause} has been called with disallowPause == true)
+     * 1) y-velocity is less than quickstep_fling_threshold_speed
+     * AND
+     * 2) motion pause has not been detected (possibly because
+     * {@link MotionPauseDetector#setDisallowPause} has been called with disallowPause == true)
      */
     public void setCanSlowSwipeGoHome(boolean canSlowSwipeGoHome) {
         mCanSlowSwipeGoHome = canSlowSwipeGoHome;
@@ -1354,10 +1361,12 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
         logger.log(event);
     }
 
-    /** Animates to the given progress, where 0 is the current app and 1 is overview. */
+    /**
+     * Animates to the given progress, where 0 is the current app and 1 is overview.
+     */
     @UiThread
     private void animateToProgress(float start, float end, long duration, Interpolator interpolator,
-            GestureEndTarget target, PointF velocityPxPerMs) {
+                                   GestureEndTarget target, PointF velocityPxPerMs) {
         runOnRecentsAnimationAndLauncherBound(() -> animateToProgressInternal(start, end, duration,
                 interpolator, target, velocityPxPerMs));
     }
@@ -1369,7 +1378,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     private final TaskStackChangeListener mActivityRestartListener = new TaskStackChangeListener() {
         @Override
         public void onActivityRestartAttempt(ActivityManager.RunningTaskInfo task,
-                boolean homeTaskVisible, boolean clearedTask, boolean wasVisible) {
+                                             boolean homeTaskVisible, boolean clearedTask, boolean wasVisible) {
             if (task.taskId == mGestureState.getRunningTaskId()
                     && task.configuration.windowConfiguration.getActivityType()
                     != ACTIVITY_TYPE_HOME) {
@@ -1385,7 +1394,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
 
     @UiThread
     private void animateToProgressInternal(float start, float end, long duration,
-            Interpolator interpolator, GestureEndTarget target, PointF velocityPxPerMs) {
+                                           Interpolator interpolator, GestureEndTarget target, PointF velocityPxPerMs) {
         maybeUpdateRecentsAttachedState();
 
         // If we are transitioning to launcher, then listen for the activity to be restarted while
@@ -1534,7 +1543,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     }
 
     private int calculateWindowRotation(RemoteAnimationTarget runningTaskTarget,
-            RecentsOrientedState orientationState) {
+                                        RecentsOrientedState orientationState) {
         if (runningTaskTarget.rotationChange != 0
                 && TaskAnimationManager.ENABLE_SHELL_TRANSITIONS) {
             return Math.abs(runningTaskTarget.rotationChange) == ROTATION_90
@@ -1546,7 +1555,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
 
     @Nullable
     private SwipePipToHomeAnimator createWindowAnimationToPip(HomeAnimationFactory homeAnimFactory,
-            RemoteAnimationTarget runningTaskTarget, float startProgress) {
+                                                              RemoteAnimationTarget runningTaskTarget, float startProgress) {
         // Directly animate the app to PiP (picture-in-picture) mode
         final ActivityManager.RunningTaskInfo taskInfo = runningTaskTarget.taskInfo;
         final RecentsOrientedState orientationState = mRemoteTargetHandles[0].getTaskViewSimulator()
@@ -1610,6 +1619,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
                 homeAnimFactory.createActivityAnimationToHome();
         swipePipToHomeAnimator.addAnimatorListener(new AnimatorListenerAdapter() {
             private boolean mHasAnimationEnded;
+
             @Override
             public void onAnimationStart(Animator animation) {
                 if (mHasAnimationEnded) return;
@@ -1695,12 +1705,13 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
 
     /**
      * Creates an animation that transforms the current app window into the home app.
-     * @param startProgress The progress of {@link #mCurrentShift} to start the window from.
+     *
+     * @param startProgress        The progress of {@link #mCurrentShift} to start the window from.
      * @param homeAnimationFactory The home animation factory.
      */
     @Override
     protected RectFSpringAnim[] createWindowAnimationToHome(float startProgress,
-            HomeAnimationFactory homeAnimationFactory) {
+                                                            HomeAnimationFactory homeAnimationFactory) {
         RectFSpringAnim[] anim =
                 super.createWindowAnimationToHome(startProgress, homeAnimationFactory);
         setupWindowAnimation(anim);
@@ -1708,8 +1719,18 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     }
 
     private void setupWindowAnimation(RectFSpringAnim[] anims) {
-        anims[0].addOnUpdateListener((r, p) -> {
-            updateSysUiFlags(Math.max(p, mCurrentShift.value));
+//        anims[0].addOnUpdateListener((r, p) -> {
+//            updateSysUiFlags(Math.max(p, mCurrentShift.value));
+//        });
+        anims[0].addOnUpdateListener(new RectFSpringAnim.OnUpdateListener() {
+            @Override
+            public void onUpdate(@Nullable RectF currentRect, float progress) {
+                updateSysUiFlags(Math.max(progress, mCurrentShift.value));
+            }
+
+            @Override
+            public void onCancel() {
+            }
         });
         anims[0].addAnimatorListener(new AnimationSuccessListener() {
             @Override
@@ -2054,7 +2075,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     protected void linkRecentsViewScroll() {
         SurfaceTransactionApplier.create(mRecentsView, applier -> {
             runActionOnRemoteHandles(remoteTargetHandle -> remoteTargetHandle.getTransformParams()
-                            .setSyncTransactionApplier(applier));
+                    .setSyncTransactionApplier(applier));
             runOnRecentsAnimationAndLauncherBound(() ->
                     mRecentsAnimationTargets.addReleaseCheck(applier));
         });
@@ -2134,6 +2155,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
 
     /**
      * TODO can we remove this now that we don't finish the controller until onTaskAppeared()?
+     *
      * @return whether the recents animation has started and there are valid app targets.
      */
     protected boolean hasTargets() {
@@ -2295,7 +2317,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     /**
      * Overrides the gesture displacement to keep the app window at the bottom of the screen while
      * the transient taskbar is being swiped in.
-     *
+     * <p>
      * There is also a catch up period so that the window can start moving 1:1 with the swipe.
      */
     @Override
@@ -2336,8 +2358,9 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
 
     /**
      * Used for winscope tracing, see launcher_trace.proto
-     * @see com.android.systemui.shared.tracing.ProtoTraceable#writeToProto
+     *
      * @param inputConsumerProto The parent of this proto message.
+     * @see com.android.systemui.shared.tracing.ProtoTraceable#writeToProto
      */
     public void writeToProto(InputConsumerProto.Builder inputConsumerProto) {
         SwipeHandlerProto.Builder swipeHandlerProto = SwipeHandlerProto.newBuilder();
