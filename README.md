@@ -1,3 +1,5 @@
+## Please see c13 branch
+
 # LauncherC
 
 [![Android CI](https://github.com/liu-wanshun/LauncherC/actions/workflows/android.yml/badge.svg)](https://github.com/liu-wanshun/LauncherC/actions/workflows/android.yml)
